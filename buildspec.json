@@ -36,10 +36,10 @@
             "bundleId": "com.example.plugintemplate-for-obs"
         }
     },
-    "name": "plugintemplate-for-obs",
-    "displayName": "Plugin Template for OBS",
+    "name": "obs-donation-options",
+    "displayName": "Donation Option",
     "version": "1.0.0",
-    "author": "Your Name Here",
+    "author": "ollie",
     "website": "https://example.com",
     "email": "me@example.com"
 }
