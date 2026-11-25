@@ -1,1 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Donation Options overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #E9B949;
+    --glow: rgba(233, 185, 73, 0.33);
+    --blur: 24px;
+    --tint: 0.35;
+    --scale: 1;
+    --margin: 32px;
+    --heading-font: 'Sora', 'Segoe UI', sans-serif;
+    --body-font: 'Inter', 'Segoe UI', sans-serif;
+    --text: #F7F3EA;
+    --muted: #E6DFCF;
+    --on-accent: #1C1404;
+  }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body { font-family: var(--body-font); color: var(--text); -webkit-font-smoothing: antialiased; }
+
+  #stage { position: absolute; inset: 0; pointer-events: none; }
+  #root { position: absolute; transform-origin: var(--origin, bottom right); }
+  #root.anchor-bottom-right { right: var(--margin); bottom: var(--margin); --origin: bottom right; }
+  #root.anchor-bottom-left { left: var(--margin); bottom: var(--margin); --origin: bottom left; }
+  #root.anchor-top-right { right: var(--margin); top: var(--margin); --origin: top right; }
+  #root.anchor-top-left { left: var(--margin); top: var(--margin); --origin: top left; }
+  #root.anchor-bottom-center { left: 50%; bottom: var(--margin); --origin: bottom center; }
+  #root.anchor-top-center { left: 50%; top: var(--margin); --origin: top center; }
+  #root.layout-bar.anchor-bottom-right, #root.layout-bar.anchor-bottom-left, #root.layout-bar.anchor-bottom-center,
+  #root.layout-bar.anchor-top-right, #root.layout-bar.anchor-top-left, #root.layout-bar.anchor-top-center {
+    left: var(--margin); right: var(--margin);
+  }
+
+  /* entrance / exit */
+  #root { --dx: 0px; transition: opacity 420ms ease, transform 520ms cubic-bezier(.2,.9,.25,1.15), filter 420ms ease; }
+  #root.anchor-bottom-center, #root.anchor-top-center { --dx: -50%; }
+  #root.layout-bar { --dx: 0px; }
+  #root { transform: translateX(var(--dx)) scale(var(--scale)); }
+  #root.hidden.entrance-rise { opacity: 0; transform: translateX(var(--dx)) translateY(28px) scale(calc(var(--scale) * 0.96)); filter: blur(6px); }
+  #root.hidden.entrance-fade { opacity: 0; }
+  #root.hidden.entrance-none { opacity: 0; transition: none; }
+
+  .glass {
+    position: relative;
+    background:
+      linear-gradient(160deg, rgba(255,255,255,0.20), rgba(255,255,255,0.05) 45%, rgba(10,10,12, var(--tint)));
+    backdrop-filter: blur(var(--blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,0,0,0.3),
+                0 24px 60px rgba(0,0,0,0.5), 0 0 40px var(--glow);
+    overflow: hidden;
+  }
+  .gold {
+    background: linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0) 55%), var(--accent);
+    color: var(--on-accent);
+    border: 1px solid rgba(255,240,190,0.7);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 26px var(--glow);
+  }
+  .heading { font-family: var(--heading-font); font-weight: 700; letter-spacing: -0.01em; }
+  .amount { font-family: var(--heading-font); font-weight: 700; }
+  .progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); box-shadow: 0 0 10px var(--accent); transition: width 120ms linear; }
+  .tiers { transition: opacity 220ms ease, transform 220ms ease; }
+  .tiers.swap { opacity: 0; transform: translateY(6px); }
+  .dots { display: flex; gap: 5px; align-items: center; }
+  .dot { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.35); transition: width 300ms ease, height 300ms ease, background 300ms ease; }
+  .dot.on { background: var(--accent); }
+  .icon { width: 1em; height: 1em; flex-shrink: 0; }
+  .popular-badge { position: absolute; top: -10px; right: 10px; padding: 3px 8px; background: #141210; color: var(--accent); border: 1px solid rgba(233,185,73,0.6); border-radius: 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .link-panel { display: flex; align-items: center; gap: 12px; border-radius: 16px; background: rgba(0,0,0,0.35); border: 1px solid rgba(233,185,73,0.35); box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
+  .link-text { font-family: var(--heading-font); font-weight: 700; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Card */
+  .card { width: 420px; box-sizing: border-box; padding: 22px 22px 18px; border-radius: 28px; display: flex; flex-direction: column; gap: 18px; }
+  .card .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .card .head .heading { font-size: 26px; min-width: 0; }
+  .card .dot.on { width: 18px; }
+  .card .tiers { display: grid; gap: 10px; }
+  .card .tier { padding: 12px; border-radius: 16px; display: flex; flex-direction: column; gap: 2px; position: relative; min-width: 0; }
+  .card .tier.plain { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
+  .card .tier .amount { font-size: 24px; display: flex; align-items: center; gap: 6px; }
+  .card .tier .label { font-size: 12px; font-weight: 500; opacity: 0.92; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .tier.gold .label { font-weight: 600; }
+  .card .link-panel { padding: 12px 16px; }
+  .card .link-panel .sub { font-size: 12px; color: var(--muted); }
+  .card .link-panel.size-large .link-text { font-size: 18px; }
+  .card .link-panel.size-medium .link-text { font-size: 15px; }
+  .card .spot { padding: 18px; border-radius: 20px; display: flex; align-items: center; gap: 14px; position: relative; }
+  .card .spot .amount { font-size: 44px; }
+  .card .spot .label { font-size: 16px; font-weight: 600; }
+
+  /* Bar */
+  .bar { height: 96px; box-sizing: border-box; padding: 8px 10px 8px 8px; border-radius: 30px; display: flex; align-items: center; gap: 18px; }
+  .bar .title { height: 100%; padding: 0 24px; border-radius: 22px; display: flex; flex-direction: column; justify-content: center; gap: 2px; max-width: 320px; box-sizing: border-box; }
+  .bar .title .heading { font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar .title .sub { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar .middle { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .bar .tiers { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
+  .bar .tier { height: 56px; padding: 0 16px; border-radius: 18px; display: flex; align-items: center; gap: 10px; white-space: nowrap; box-sizing: border-box; }
+  .bar .tier.plain { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
+  .bar .tier.hl { background: rgba(233,185,73,0.14); border: 1px solid var(--accent); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 0 22px var(--glow); }
+  .bar .tier.hl .amount { color: var(--accent); }
+  .bar .tier .amount { font-size: 22px; display: flex; align-items: center; gap: 6px; }
+  .bar .tier .label { font-size: 13px; color: var(--muted); }
+  .bar .tier.any { border: 1px dashed rgba(255,255,255,0.3); font-size: 13px; color: var(--muted); }
+  .bar .dots { flex-direction: column; gap: 4px; margin-left: 4px; }
+  .bar .dot.on { height: 18px; }
+  .bar .link-panel { height: 100%; padding: 0 20px; border-radius: 22px; box-sizing: border-box; flex-shrink: 1; min-width: 0; }
+  .bar .link-panel.size-large .link-text { font-size: 18px; }
+  .bar .link-panel.size-medium .link-text { font-size: 15px; }
+  .bar .spot .amount { font-size: 26px; }
+  .bar .spot { height: 64px; padding: 0 22px; }
+
+  /* Minimal */
+  .minimal { display: inline-flex; align-items: center; gap: 12px; padding: 8px 8px 8px 18px; border-radius: 999px; }
+  .minimal .heading { font-size: 17px; white-space: nowrap; }
+  .minimal .tiers { display: flex; gap: 8px; }
+  .minimal .tier { height: 40px; padding: 0 14px; border-radius: 999px; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .minimal .tier .amount { font-size: 18px; display: flex; align-items: center; gap: 6px; }
+  .minimal .tier .label { font-size: 12px; font-weight: 600; }
+  .minimal .tier.plain { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); }
+  .minimal .link-panel { height: 40px; padding: 0 14px; border-radius: 999px; gap: 8px; }
+  .minimal .link-text { font-size: 14px; }
+  .minimal .dot.on { width: 14px; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="root" class="hidden"></div></div>
+<script>
+(function () {
+  'use strict';
+
+  var ICONS = {
+    heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+    cup: '<path d="M4 8h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/>',
+    star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    gift: '<rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1zM12 9c2-4 6-4 6-1s-6 1-6 1z"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'
+  };
+
+  // Used when config.json can't be read (e.g. opening the file directly in a browser to preview it).
+  var DEMO = {
+    visible: true, link: 'ko-fi.com/yourname', heading: 'Support the stream', subtext: 'Every bit keeps us live',
+    currency: '£', showAny: true, layout: 'card',
+    tiers: [
+      { amount: 3, label: 'Say hi', show: true }, { amount: 5, label: 'Buy me a coffee', show: true, popular: true },
+      { amount: 10, label: 'Pizza slice', show: true }, { amount: 15, label: 'Lunch on me', show: true },
+      { amount: 25, label: 'Fund new gear', show: true }, { amount: 50, label: 'Big hype', show: true }
+    ],
+    rotate: { enabled: true, perPage: 3, seconds: 5, order: 'list', keepPopular: false },
+    style: { accent: '#E9B949', blur: 24, tint: 35, font: 'Sora', showLink: true, linkSize: 'large', entrance: 'rise', anchor: 'bottom-right', margin: 32, scale: 1 },
+    visibility: { mode: 'always', showSeconds: 45, everyMinutes: 10 },
+    spotlight: { index: -1, until: 0 }, trigger: { until: 0 }, nextSeq: 0
+  };
+
+  var root = document.getElementById('root');
+  var cfg = null, cfgText = '';
+  var pages = [[]], page = 0, elapsed = 0, lastTick = Date.now();
+  var lastNextSeq = null, loadedAt = Date.now();
+  var els = {};            // references into the current layout
+  var structureKey = '';   // rebuild DOM only when the layout/shape changes
+  var demoMode = false;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function svgIcon(name, stroke, extraClass) {
+    if (!ICONS[name]) return null;
+    var wrap = document.createElement('span');
+    wrap.innerHTML = '<svg class="icon ' + (extraClass || '') + '" viewBox="0 0 24 24" fill="none" stroke="' +
+      (stroke || 'currentColor') + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      ICONS[name] + '</svg>';
+    return wrap.firstChild;
+  }
+  function num(v, d) { v = Number(v); return isFinite(v) ? v : d; }
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+  function formatAmount(t) {
+    var a = num(t.amount, 0);
+    var s = Math.abs(a - Math.round(a)) < 0.005 ? String(Math.round(a)) : a.toFixed(2);
+    return (cfg.currency || '') + s;
+  }
+
+  function hexToRgb(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return { r: 233, g: 185, b: 73 };
+    var n = parseInt(m[1], 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // Splits the visible amounts into the sets that rotate on stream.
+  function buildPages() {
+    var visible = (cfg.tiers || []).filter(function (t) { return t && t.show !== false; });
+    var r = cfg.rotate || {};
+    var maxPer = cfg.layout === 'bar' ? 4 : 3;
+    if (cfg.layout === 'minimal') maxPer = 2;
+    var per = clamp(Math.round(num(r.perPage, 3)), 1, maxPer);
+    if (!visible.length) return [[]];
+    if (!r.enabled) return [visible.slice(0, per)];
+
+    var pinned = null, rest = visible;
+    if (r.keepPopular) {
+      for (var i = 0; i < visible.length; i++) if (visible[i].popular) { pinned = visible[i]; break; }
+      if (pinned) rest = visible.filter(function (t) { return t !== pinned; });
+    }
+    if (r.order === 'shuffle') rest = shuffle(rest);
+
+    var out = [];
+    var chunk = pinned ? per - 1 : per;
+    if (chunk <= 0) return [[pinned]];
+    for (var k = 0; k < rest.length; k += chunk) {
+      var set = rest.slice(k, k + chunk);
+      if (pinned) set.unshift(pinned);
+      out.push(set);
+    }
+    return out.length ? out : [[pinned]];
+  }
+
+  function applyStyle() {
+    var s = cfg.style || {};
+    var rgb = hexToRgb(s.accent);
+    var st = document.documentElement.style;
+    st.setProperty('--accent', 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')');
+    st.setProperty('--glow', 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.33)');
+    st.setProperty('--blur', clamp(num(s.blur, 24), 0, 60) + 'px');
+    st.setProperty('--tint', String(clamp(num(s.tint, 35), 0, 100) / 100));
+    st.setProperty('--scale', String(clamp(num(s.scale, 1), 0.25, 4)));
+    st.setProperty('--margin', clamp(num(s.margin, 32), 0, 1000) + 'px');
+    var font = s.font === 'Inter' ? "'Inter', 'Segoe UI', sans-serif" : "'Sora', 'Segoe UI', sans-serif";
+    st.setProperty('--heading-font', font);
+
+    var anchor = s.anchor || 'bottom-right';
+    var entrance = s.entrance || 'rise';
+    var hidden = root.classList.contains('hidden');
+    root.className = 'anchor-' + anchor + ' layout-' + (cfg.layout || 'card') + ' entrance-' + entrance + (hidden ? ' hidden' : '');
+  }
+
+  // ---------- Layout builders ----------
+  function buildCard() {
+    var box = el('div', 'glass card');
+    var head = el('div', 'head');
+    els.heading = el('span', 'heading');
+    els.dots = el('div', 'dots');
+    head.appendChild(els.heading); head.appendChild(els.dots);
+    box.appendChild(head);
+    els.tiers = el('div', 'tiers');
+    box.appendChild(els.tiers);
+    els.linkPanel = el('div', 'link-panel');
+    els.linkPanel.appendChild(svgIcon('link', 'currentColor'));
+    els.linkPanel.firstChild.style.color = 'var(--accent)';
+    els.linkPanel.firstChild.style.fontSize = '20px';
+    var col = el('div'); col.style.display = 'flex'; col.style.flexDirection = 'column'; col.style.gap = '1px'; col.style.minWidth = '0';
+    els.linkSub = el('span', 'sub');
+    els.linkText = el('span', 'link-text');
+    col.appendChild(els.linkSub); col.appendChild(els.linkText);
+    els.linkPanel.appendChild(col);
+    box.appendChild(els.linkPanel);
+    els.progress = el('div', 'progress');
+    box.appendChild(els.progress);
+    return box;
+  }
+
+  function buildBar() {
+    var box = el('div', 'glass bar');
+    var title = el('div', 'title gold');
+    els.heading = el('span', 'heading');
+    els.sub = el('span', 'sub');
+    title.appendChild(els.heading); title.appendChild(els.sub);
+    box.appendChild(title);
+    var mid = el('div', 'middle');
+    els.tiers = el('div', 'tiers');
+    els.any = el('div', 'tier any', 'Any amount');
+    els.dots = el('div', 'dots');
+    mid.appendChild(els.tiers); mid.appendChild(els.any); mid.appendChild(els.dots);
+    box.appendChild(mid);
+    els.linkPanel = el('div', 'link-panel');
+    var ic = svgIcon('link', 'currentColor'); ic.style.color = 'var(--accent)'; ic.style.fontSize = '20px';
+    els.linkPanel.appendChild(ic);
+    els.linkText = el('span', 'link-text');
+    els.linkPanel.appendChild(els.linkText);
+    box.appendChild(els.linkPanel);
+    els.progress = el('div', 'progress');
+    box.appendChild(els.progress);
+    return box;
+  }
+
+  function buildMinimal() {
+    var box = el('div', 'glass minimal');
+    els.heading = el('span', 'heading');
+    els.tiers = el('div', 'tiers');
+    els.dots = el('div', 'dots');
+    els.linkPanel = el('div', 'link-panel');
+    var ic = svgIcon('link', 'currentColor'); ic.style.color = 'var(--accent)'; ic.style.fontSize = '16px';
+    els.linkPanel.appendChild(ic);
+    els.linkText = el('span', 'link-text');
+    els.linkPanel.appendChild(els.linkText);
+    els.progress = el('div', 'progress');
+    box.appendChild(els.heading); box.appendChild(els.tiers); box.appendChild(els.dots);
+    box.appendChild(els.linkPanel); box.appendChild(els.progress);
+    return box;
+  }
+
+  function rebuildIfNeeded() {
+    var key = cfg.layout || 'card';
+    if (key === structureKey && root.firstChild) return;
+    structureKey = key;
+    els = {};
+    root.innerHTML = '';
+    var node = key === 'bar' ? buildBar() : key === 'minimal' ? buildMinimal() : buildCard();
+    root.appendChild(node);
+  }
+
+  function tierNode(t, highlight) {
+    var layout = cfg.layout || 'card';
+    var cls = 'tier ' + (highlight ? (layout === 'bar' ? 'hl' : 'gold') : 'plain');
+    var n = el('div', cls);
+    if (t.popular && layout === 'card') n.appendChild(el('span', 'popular-badge', 'Popular'));
+    var amt = el('span', 'amount');
+    var ic = t.icon && t.icon !== 'none' ? svgIcon(t.icon, 'currentColor') : null;
+    if (ic) { ic.style.fontSize = '0.75em'; amt.appendChild(ic); }
+    amt.appendChild(document.createTextNode(formatAmount(t)));
+    n.appendChild(amt);
+    if (t.label) n.appendChild(el('span', 'label', t.label));
+    return n;
+  }
+
+  function renderTiers(spot) {
+    var layout = cfg.layout || 'card';
+    var box = els.tiers;
+    box.innerHTML = '';
+    if (spot) {
+      var n = tierNode(spot, true);
+      n.classList.add('spot');
+      box.style.gridTemplateColumns = '1fr';
+      box.appendChild(n);
+      return;
+    }
+    var set = pages[page % pages.length] || [];
+    if (layout === 'card') box.style.gridTemplateColumns = 'repeat(' + Math.max(1, set.length) + ', minmax(0, 1fr))';
+    set.forEach(function (t) { box.appendChild(tierNode(t, !!t.popular)); });
+  }
+
+  function renderDots(spot) {
+    els.dots.innerHTML = '';
+    if (spot || pages.length < 2) { els.dots.style.display = 'none'; return; }
+    els.dots.style.display = '';
+    for (var i = 0; i < pages.length; i++) els.dots.appendChild(el('span', 'dot' + (i === page % pages.length ? ' on' : '')));
+  }
+
+  function currentSpotlight(now) {
+    var sp = cfg.spotlight || {};
+    var idx = Math.round(num(sp.index, -1));
+    if (idx < 0 || num(sp.until, 0) <= now) return null;
+    var t = (cfg.tiers || [])[idx];
+    return t || null;
+  }
+
+  function renderStatic(spot) {
+    var layout = cfg.layout || 'card';
+    els.heading.textContent = cfg.heading || '';
+    els.heading.style.display = cfg.heading ? '' : 'none';
+    if (els.sub) { els.sub.textContent = cfg.subtext || ''; els.sub.style.display = cfg.subtext ? '' : 'none'; }
+    if (els.any) els.any.style.display = cfg.showAny && !spot ? '' : 'none';
+
+    var s = cfg.style || {};
+    var link = (spot && spot.link) ? spot.link : (cfg.link || '');
+    var showLink = s.showLink !== false && !!link;
+    els.linkPanel.style.display = showLink ? '' : 'none';
+    els.linkPanel.className = 'link-panel size-' + (s.linkSize === 'medium' ? 'medium' : 'large');
+    els.linkText.textContent = link;
+    if (els.linkSub) els.linkSub.textContent = spot ? 'Donate at' : (cfg.showAny ? 'Any amount at' : 'Donate at');
+    if (layout === 'card' && els.linkSub) els.linkSub.style.display = '';
+  }
+
+  function fullRender(animate) {
+    var now = Date.now();
+    var spot = currentSpotlight(now);
+    var doIt = function () {
+      renderTiers(spot);
+      renderDots(spot);
+      renderStatic(spot);
+      if (els.tiers) els.tiers.classList.remove('swap');
+    };
+    if (animate && els.tiers) {
+      els.tiers.classList.add('swap');
+      setTimeout(doIt, 220);
+    } else {
+      doIt();
+    }
+  }
+
+  function onConfig(next) {
+    var prevLayout = cfg && cfg.layout;
+    var prevTiers = cfg && JSON.stringify([cfg.tiers, cfg.rotate]);
+    cfg = next;
+    if (lastNextSeq === null) lastNextSeq = num(cfg.nextSeq, 0);
+    applyStyle();
+    rebuildIfNeeded();
+    if (prevLayout !== cfg.layout || prevTiers !== JSON.stringify([cfg.tiers, cfg.rotate])) {
+      pages = buildPages();
+      page = 0; elapsed = 0;
+    }
+    var seq = num(cfg.nextSeq, 0);
+    if (seq !== lastNextSeq) {
+      lastNextSeq = seq;
+      advance();
+      return;
+    }
+    fullRender(false);
+  }
+
+  function advance() {
+    page += 1;
+    elapsed = 0;
+    if (page >= pages.length) {
+      page = 0;
+      if (cfg.rotate && cfg.rotate.order === 'shuffle') pages = buildPages();
+    }
+    fullRender(true);
+  }
+
+  function shouldShow(now) {
+    if (!cfg || !cfg.visible) return false;
+    if (currentSpotlight(now)) return true;
+    var v = cfg.visibility || {};
+    if (v.mode === 'triggered') return num(cfg.trigger && cfg.trigger.until, 0) > now;
+    if (v.mode === 'cycle') {
+      if (num(cfg.trigger && cfg.trigger.until, 0) > now) return true;
+      var every = Math.max(1, num(v.everyMinutes, 10)) * 60000;
+      var show = Math.max(1, num(v.showSeconds, 45)) * 1000;
+      return ((now - loadedAt) % every) < show;
+    }
+    return true;
+  }
+
+  var lastSpotState = false;
+  function tick() {
+    var now = Date.now();
+    var dt = Math.min(1000, now - lastTick);
+    lastTick = now;
+    if (!cfg) return;
+
+    var show = shouldShow(now);
+    root.classList.toggle('hidden', !show);
+
+    var spot = !!currentSpotlight(now);
+    if (spot !== lastSpotState) { lastSpotState = spot; fullRender(true); }
+
+    var r = cfg.rotate || {};
+    var seconds = clamp(num(r.seconds, 8), 2, 3600);
+    var rotating = r.enabled && pages.length > 1 && !spot && show;
+    if (rotating) {
+      elapsed += dt;
+      if (elapsed >= seconds * 1000) advance();
+    }
+    if (els.progress) els.progress.style.width = rotating ? Math.min(100, (elapsed / (seconds * 1000)) * 100) + '%' : '0%';
+  }
+
+  function poll() {
+    if (demoMode) return;
+    fetch('config.json?_=' + Date.now(), { cache: 'no-store' })
+      .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+      .then(function (text) {
+        if (text === cfgText) return;
+        var parsed = JSON.parse(text);
+        cfgText = text;
+        onConfig(parsed);
+      })
+      .catch(function () {
+        if (cfg) return;
+        // Preview mode: open overlay.html directly, optionally with ?layout=bar|minimal&bg=1
+        demoMode = true;
+        var q = new URLSearchParams(location.search);
+        if (q.get('layout')) DEMO.layout = q.get('layout');
+        if (q.get('bg')) document.body.style.background =
+          'radial-gradient(circle at 30% 40%, #2F5E7A, transparent 50%), radial-gradient(circle at 80% 80%, #7A3E2F, transparent 45%), #141A24';
+        onConfig(DEMO);
+      });
+  }
+
+  poll();
+  setInterval(poll, 750);
+  setInterval(tick, 100);
+})();
+</script>
+</body>
+</html>
 
